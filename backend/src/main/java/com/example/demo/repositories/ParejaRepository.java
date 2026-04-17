@@ -1,0 +1,10 @@
+package com.example.demo.repositories;
+
+import com.example.demo.models.Pareja;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface ParejaRepository extends JpaRepository<Pareja, Long> {
+    
+}

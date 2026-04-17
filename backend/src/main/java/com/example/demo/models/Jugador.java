@@ -19,4 +19,6 @@ public class Jugador {
     private String apellido;
     private String email;
     private String telefono;
+    private String posicion;
+    private int nivel;
 }
