@@ -1,0 +1,179 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Crear Parejas">
+    <main class="max-w-4xl mx-auto p-8">
+        <h1 class="text-3xl font-bold text-center mb-10">
+            Formación de Parejas
+        </h1>
+
+        <div
+            class="bg-white p-8 rounded-3xl shadow-xl mb-12 border border-gray-100"
+        >
+            <h2 class="text-xl font-semibold mb-6">
+                Selecciona a los compañeros
+            </h2>
+
+            <form id="parejaForm" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label
+                            class="block text-sm font-medium text-gray-700 mb-2"
+                            >Jugador 1</label
+                        >
+                        <select
+                            id="selectJugador1"
+                            class="w-full p-3 border rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500"
+                            required
+                        >
+                            <option value="">Cargando jugadores...</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label
+                            class="block text-sm font-medium text-gray-700 mb-2"
+                            >Jugador 2</label
+                        >
+                        <select
+                            id="selectJugador2"
+                            class="w-full p-3 border rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500"
+                            required
+                        >
+                            <option value="">Cargando jugadores...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95"
+                >
+                    Confirmar Pareja
+                </button>
+            </form>
+        </div>
+
+        <div id="listaParejas" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        </div>
+    </main>
+
+    <script>
+        import { getJugadores } from "../services/jugadores";
+        import { registrarPareja, getParejas } from "../services/parejas";
+
+        const select1 = document.getElementById(
+            "selectJugador1",
+        ) as HTMLSelectElement;
+        const select2 = document.getElementById(
+            "selectJugador2",
+        ) as HTMLSelectElement;
+        const form = document.getElementById("parejaForm") as HTMLFormElement;
+        const lista = document.getElementById("listaParejas");
+
+        async function actualizarInterfaz() {
+            try {
+                // Al cambiar el jugador 1, deshabilitamos esa opción en el jugador 2
+                select1.addEventListener("change", () => {
+                    const seleccionado = select1.value;
+                    Array.from(select2.options).forEach((option) => {
+                        option.disabled = option.value === seleccionado;
+                    });
+                });
+                // Obtenemos datos en paralelo
+                const [jugadores, parejas] = await Promise.all([
+                    getJugadores().catch(() => []),
+                    getParejas().catch(() => []),
+                ]);
+
+                // 1. Identificar IDs ocupados
+                const idsOcupados = new Set();
+                parejas.forEach((p: any) => {
+                    if (p.jugador1?.id) idsOcupados.add(p.jugador1.id);
+                    if (p.jugador2?.id) idsOcupados.add(p.jugador2.id);
+                });
+
+                // 2. Filtrar libres
+                const jugadoresLibres = jugadores.filter(
+                    (j: any) => !idsOcupados.has(j.id),
+                );
+
+                // 3. Renderizar Selects
+                const defaultOption =
+                    '<option value="" disabled selected>Selecciona un jugador libre</option>';
+                const options = jugadoresLibres
+                    .map(
+                        (j: any) =>
+                            `<option value="${j.id}">${j.nombre} ${j.apellido}</option>`,
+                    )
+                    .join("");
+
+                if (select1 && select2) {
+                    select1.innerHTML = defaultOption + options;
+                    select2.innerHTML = defaultOption + options;
+
+                    if (jugadoresLibres.length === 0 && jugadores.length > 0) {
+                        select1.innerHTML =
+                            "<option disabled>Todos los jugadores tienen pareja</option>";
+                    }
+                }
+
+                // 4. Renderizar Lista
+                if (lista) {
+                    if (parejas.length === 0) {
+                        lista.innerHTML =
+                            '<p class="text-gray-400 italic col-span-2 text-center">No hay parejas formadas todavía.</p>';
+                    } else {
+                        lista.innerHTML = parejas
+                            .map(
+                                (p: any) => `
+                            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center animate-in fade-in duration-500">
+                                <div class="flex items-center gap-4">
+                                    <div class="bg-green-100 p-3 rounded-full text-xl">🎾</div>
+                                    <div>
+                                        <p class="font-bold text-gray-800">${p.jugador1?.nombre || "?"} & ${p.jugador2?.nombre || "?"}</p>
+                                        <p class="text-[10px] text-gray-400 uppercase tracking-widest">ID Pareja: ${p.id}</p>
+                                    </div>
+                                </div>
+                                <div class="text-right bg-gray-50 px-4 py-2 rounded-xl border border-gray-100">
+                                    <span class="block text-[10px] text-gray-400 uppercase font-bold">Puntos</span>
+                                    <span class="text-xl font-black text-blue-600">${p.puntosTotales || 0}</span>
+                                </div>
+                            </div>
+                        `,
+                            )
+                            .join("");
+                    }
+                }
+            } catch (error) {
+                console.error("Error crítico en la interfaz:", error);
+                if (select1)
+                    select1.innerHTML =
+                        "<option disabled>Error de conexión (CORS)</option>";
+            }
+        }
+
+        form?.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const id1 = parseInt(select1.value);
+            const id2 = parseInt(select2.value);
+
+            if (!id1 || !id2)
+                return alert("Por favor, selecciona a ambos jugadores.");
+
+            try {
+                await registrarPareja(id1, id2);
+                form.reset();
+                await actualizarInterfaz();
+            } catch (error) {
+                alert(
+                    "No se pudo crear la pareja. Revisa que el servidor Java esté encendido.",
+                );
+            }
+        });
+
+        // Ejecución inicial
+        actualizarInterfaz();
+    </script>
+</Layout>
